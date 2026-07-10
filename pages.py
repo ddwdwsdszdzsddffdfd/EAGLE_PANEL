@@ -1,4 +1,3 @@
-# pages.py - ادامه با فینگرپرینت‌های کامل
 
 LOGIN_HTML = r"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
