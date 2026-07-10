@@ -12,7 +12,6 @@ from urllib.parse import quote
 from collections import deque, defaultdict
 from pathlib import Path
 import socket
-import base64
 
 from fastapi import FastAPI, Request, HTTPException, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response, HTMLResponse, JSONResponse, RedirectResponse
@@ -21,7 +20,7 @@ import uvicorn
 import httpx
 import logging
 
-# ─── تنظیمات لاگ ────────────────────────────────────────────────────────────
+# ─── تنظیمات ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -29,16 +28,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("Eagle-Gateway")
 
-# ─── تنظیمات زمان ──────────────────────────────────────────────────────────
-try:
-    IRAN_TZ = ZoneInfo("Asia/Tehran")
-except:
-    IRAN_TZ = None
-
-def now_ir():
-    if IRAN_TZ:
-        return datetime.now(IRAN_TZ)
-    return datetime.now()
+IRAN_TZ = ZoneInfo("Asia/Tehran")
 
 # ─── کانفیگ ──────────────────────────────────────────────────────────────────
 CONFIG = {
@@ -49,7 +39,7 @@ CONFIG = {
 }
 
 # ─── App ──────────────────────────────────────────────────────────────────────
-app = FastAPI(title="🪐 Eagle Gateway", docs_url=None, redoc_url=None)
+app = FastAPI(title="🪐 Eagle Gateway v10 Pro", docs_url=None, redoc_url=None)
 
 app.add_middleware(
     CORSMiddleware,
@@ -60,7 +50,7 @@ app.add_middleware(
 )
 
 # ─── State ────────────────────────────────────────────────────────────────────
-DATA_DIR = Path("/data") if os.environ.get("RAILWAY_ENVIRONMENT") else Path("./data")
+DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 DATA_FILE = DATA_DIR / "eagle_state.json"
 SAVE_LOCK = asyncio.Lock()
 
@@ -102,7 +92,7 @@ SETTINGS: dict = {
 PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "xhttp-stream-one")
 DEFAULT_PROTOCOL = "vless-ws"
 
-# ─── لیست فینگرپرینت‌ها ──────────────────────────────────────────────────────
+# ─── ✅ لیست کامل فینگرپرینت‌ها ─────────────────────────────────────────────
 FINGERPRINTS = {
     "chrome": "🌐 Chrome",
     "firefox": "🦊 Firefox",
@@ -115,274 +105,22 @@ FINGERPRINTS = {
     "none": "🚫 None"
 }
 
-# ─── ترجمه ──────────────────────────────────────────────────────────────────
-T = {
-    "fa": {
-        "app_name": "پنل عقاب",
-        "app_sub": "مدیریت کاربران",
-        "welcome": "خوش آمدید",
-        "login_sub": "وارد حساب کاربری خود شوید",
-        "username": "نام کاربری یا ایمیل",
-        "password": "رمز عبور",
-        "remember": "مرا به خاطر بسپار",
-        "login": "ورود",
-        "or": "یا",
-        "connect": "اتصال با یک کلیک",
-        "signup": "حساب کاربری ندارید؟",
-        "signup_link": "ثبت نام",
-        "logout": "خروج",
-        "save": "ذخیره",
-        "cancel": "انصراف",
-        "edit": "ویرایش",
-        "delete": "حذف",
-        "copy": "کپی",
-        "copied": "کپی شد",
-        "error": "خطا",
-        "success": "موفق",
-        "loading": "در حال بارگذاری...",
-        "settings": "تنظیمات",
-        "backup": "بکاپ",
-        "logs": "لاگ‌ها",
-        "inbound": "اینباند",
-        "connections": "اتصالات",
-        "users": "کاربران",
-        "dashboard": "خانه",
-        "language": "زبان پنل",
-        "current_lang": "زبان فعلی",
-        "persian": "فارسی",
-        "english": "English",
-        "online": "آنلاین",
-        "offline": "آفلاین",
-        "active": "فعال",
-        "inactive": "غیرفعال",
-        "expired": "منقضی",
-        "never": "—",
-        "unlimited": "نامحدود",
-        "gb": "گیگابایت",
-        "day": "روز",
-        "days": "روز",
-        "device": "دستگاه",
-        "devices": "دستگاه‌ها",
-        "quota": "سهمیه",
-        "usage": "مصرف",
-        "traffic": "ترافیک",
-        "requests": "درخواست‌ها",
-        "uptime": "آپتایم",
-        "disk": "فضای دیسک",
-        "speed": "سرعت",
-        "users_count": "کاربران",
-        "last_update": "بروزرسانی",
-        "recent_users": "کاربران اخیر",
-        "no_users": "هیچ کاربری وجود ندارد",
-        "no_connections": "هیچ اتصالی وجود ندارد",
-        "no_logs": "هیچ لاگی وجود ندارد",
-        "new_user": "کاربر جدید",
-        "create_user": "ساخت کاربر جدید",
-        "edit_user": "ویرایش کاربر",
-        "delete_user": "حذف کاربر",
-        "username_label": "نام کاربری",
-        "quota_label": "حجم (GB)",
-        "expiry_label": "انقضا (روز)",
-        "devices_label": "تعداد دستگاه",
-        "fingerprint_label": "فینگرپرینت",
-        "password_label": "رمز (اختیاری)",
-        "status_label": "وضعیت",
-        "fingerprint_hint": "فینگرپرینت مناسب دستگاه خود را انتخاب کنید",
-        "protocol": "پروتکل",
-        "port": "پورت",
-        "host": "هاست",
-        "status": "وضعیت",
-        "active_connections": "اتصالات فعال",
-        "last_seen": "آخرین اتصال",
-        "change_password": "تغییر رمز",
-        "old_password": "رمز فعلی",
-        "new_password": "رمز جدید",
-        "confirm_password": "تکرار رمز",
-        "rgb_mode": "تم RGB",
-        "inbound_settings": "تنظیمات اینباند",
-        "backup_download": "دانلود بکاپ",
-        "backup_restore": "بازیابی بکاپ",
-        "user_not_found": "کاربر یافت نشد",
-        "invalid_link": "لینک ساب‌لینک معتبر نیست یا کاربر حذف شده است.",
-        "subscription_info": "اطلاعات اشتراک",
-        "config_link": "لینک کانفیگ",
-        "qr_code": "QR",
-        "copy_config": "کپی کانفیگ",
-        "copy_sub": "کپی ساب",
-        "sub_url": "ساب‌لینک",
-        "reset_usage": "ریست مصرف",
-        "usage_percent": "میزان مصرف",
-        "fingerprint": "فینگرپرینت",
-        "connected_devices": "دستگاه‌های متصل",
-        "no_active_connections": "بدون اتصال فعال",
-        "last_connected": "آخرین اتصال",
-        "remaining": "باقیمانده",
-        "copy_uuid": "کپی UUID",
-        "config_copied": "لینک کانفیگ کپی شد",
-        "sub_copied": "ساب‌لینک کپی شد",
-        "uuid_copied": "UUID کپی شد",
-        "user_created": "کاربر ساخته شد",
-        "user_updated": "کاربر ویرایش شد",
-        "user_deleted": "کاربر حذف شد",
-        "usage_reset": "مصرف ریست شد",
-        "password_changed": "رمز تغییر کرد",
-        "backup_created": "بکاپ ساخته شد",
-        "backup_restored": "بکاپ بازیابی شد",
-        "settings_saved": "تنظیمات ذخیره شد",
-        "connection_error": "خطا در ارتباط با سرور",
-        "wrong_password": "رمز عبور اشتباه است",
-        "password_mismatch": "رمزها مطابقت ندارند",
-        "password_too_short": "رمز حداقل ۴ کاراکتر",
-        "invalid_port": "پورت نامعتبر",
-        "delete_password_required": "برای حذف رمز را وارد کنید",
-        "edit_password_required": "برای ویرایش رمز را وارد کنید",
-        "multiple_ports": "پورت‌های چندگانه",
-        "select_ports": "پورت‌های مورد نظر را انتخاب کنید",
-        "port_selection_hint": "حداقل یک پورت انتخاب کنید",
-        "configs_created": "کانفیگ‌ها ساخته شدند",
-        "group_sub_link": "لینک گروهی",
-        "copy_group_sub": "کپی لینک گروهی",
-        "group_sub_copied": "لینک گروهی کپی شد",
-        "select_all": "انتخاب همه",
-        "deselect_all": "لغو همه",
-    },
-    "en": {
-        "app_name": "Eagle Panel",
-        "app_sub": "User Management",
-        "welcome": "Welcome Back",
-        "login_sub": "Login to your account",
-        "username": "Username or Email",
-        "password": "Password",
-        "remember": "Remember me",
-        "login": "Login",
-        "or": "OR",
-        "connect": "Connect with One Click",
-        "signup": "Don't have an account?",
-        "signup_link": "Sign up",
-        "logout": "Logout",
-        "save": "Save",
-        "cancel": "Cancel",
-        "edit": "Edit",
-        "delete": "Delete",
-        "copy": "Copy",
-        "copied": "Copied",
-        "error": "Error",
-        "success": "Success",
-        "loading": "Loading...",
-        "settings": "Settings",
-        "backup": "Backup",
-        "logs": "Logs",
-        "inbound": "Inbound",
-        "connections": "Connections",
-        "users": "Users",
-        "dashboard": "Dashboard",
-        "language": "Panel Language",
-        "current_lang": "Current Language",
-        "persian": "Persian",
-        "english": "English",
-        "online": "Online",
-        "offline": "Offline",
-        "active": "Active",
-        "inactive": "Inactive",
-        "expired": "Expired",
-        "never": "—",
-        "unlimited": "Unlimited",
-        "gb": "GB",
-        "day": "Day",
-        "days": "Days",
-        "device": "Device",
-        "devices": "Devices",
-        "quota": "Quota",
-        "usage": "Usage",
-        "traffic": "Traffic",
-        "requests": "Requests",
-        "uptime": "Uptime",
-        "disk": "Disk Space",
-        "speed": "Speed",
-        "users_count": "Users",
-        "last_update": "Last Update",
-        "recent_users": "Recent Users",
-        "no_users": "No users found",
-        "no_connections": "No active connections",
-        "no_logs": "No logs available",
-        "new_user": "New User",
-        "create_user": "Create New User",
-        "edit_user": "Edit User",
-        "delete_user": "Delete User",
-        "username_label": "Username",
-        "quota_label": "Quota (GB)",
-        "expiry_label": "Expiry (Days)",
-        "devices_label": "Devices",
-        "fingerprint_label": "Fingerprint",
-        "password_label": "Password (Optional)",
-        "status_label": "Status",
-        "fingerprint_hint": "Select fingerprint for your device",
-        "protocol": "Protocol",
-        "port": "Port",
-        "host": "Host",
-        "status": "Status",
-        "active_connections": "Active Connections",
-        "last_seen": "Last Seen",
-        "change_password": "Change Password",
-        "old_password": "Current Password",
-        "new_password": "New Password",
-        "confirm_password": "Confirm Password",
-        "rgb_mode": "RGB Mode",
-        "inbound_settings": "Inbound Settings",
-        "backup_download": "Download Backup",
-        "backup_restore": "Restore Backup",
-        "user_not_found": "User Not Found",
-        "invalid_link": "Subscription link is invalid or user has been deleted.",
-        "subscription_info": "Subscription Info",
-        "config_link": "Config Link",
-        "qr_code": "QR",
-        "copy_config": "Copy Config",
-        "copy_sub": "Copy Sub",
-        "sub_url": "Subscription URL",
-        "reset_usage": "Reset Usage",
-        "usage_percent": "Usage",
-        "fingerprint": "Fingerprint",
-        "connected_devices": "Connected Devices",
-        "no_active_connections": "No active connections",
-        "last_connected": "Last Connected",
-        "remaining": "Remaining",
-        "copy_uuid": "Copy UUID",
-        "config_copied": "Config link copied",
-        "sub_copied": "Sub link copied",
-        "uuid_copied": "UUID copied",
-        "user_created": "User created",
-        "user_updated": "User updated",
-        "user_deleted": "User deleted",
-        "usage_reset": "Usage reset",
-        "password_changed": "Password changed",
-        "backup_created": "Backup created",
-        "backup_restored": "Backup restored",
-        "settings_saved": "Settings saved",
-        "connection_error": "Connection error",
-        "wrong_password": "Wrong password",
-        "password_mismatch": "Passwords do not match",
-        "password_too_short": "Password must be at least 4 characters",
-        "invalid_port": "Invalid port",
-        "delete_password_required": "Enter password to delete",
-        "edit_password_required": "Enter password to edit",
-        "multiple_ports": "Multiple Ports",
-        "select_ports": "Select ports",
-        "port_selection_hint": "Select at least one port",
-        "configs_created": "Configs created",
-        "group_sub_link": "Group Link",
-        "copy_group_sub": "Copy Group Link",
-        "group_sub_copied": "Group link copied",
-        "select_all": "Select All",
-        "deselect_all": "Deselect All",
-    }
+FINGERPRINT_EMOJI = {
+    "chrome": "🌐",
+    "firefox": "🦊",
+    "safari": "🧭",
+    "edge": "🌊",
+    "ios": "📱",
+    "android": "🤖",
+    "safari_ios": "🍏",
+    "random": "🎲",
+    "none": "🚫"
 }
 
-def tr(key: str, lang: str = "fa") -> str:
-    if lang not in T:
-        lang = "fa"
-    return T[lang].get(key, key)
-
 # ─── Functions ─────────────────────────────────────────────────────────────────
+
+def now_ir() -> datetime:
+    return datetime.now(IRAN_TZ)
 
 def hash_password(pw: str) -> str:
     return hashlib.sha256(f"{pw}{CONFIG['secret']}".encode()).hexdigest()
@@ -392,9 +130,7 @@ def generate_uuid() -> str:
     return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
 
 def get_host() -> str:
-    host = os.environ.get("RAILWAY_PUBLIC_DOMAIN", os.environ.get("RENDER_EXTERNAL_URL", CONFIG["host"]))
-    host = host.replace("https://", "").replace("http://", "").split("/")[0]
-    return host
+    return os.environ.get("RAILWAY_PUBLIC_DOMAIN", os.environ.get("RENDER_EXTERNAL_URL", CONFIG["host"]))
 
 def fmt_bytes(b: int) -> str:
     if not b or b == 0:
@@ -416,7 +152,7 @@ def client_ip(request: Request) -> str:
     real_ip = request.headers.get("x-real-ip")
     if real_ip:
         return real_ip.strip()
-    return request.client.host if request.client else "Unknown"
+    return request.client.host if request.client else "نامشخص"
 
 def uptime() -> str:
     secs = int(time.time() - stats["start_time"])
@@ -439,7 +175,7 @@ def is_link_expired(link: dict) -> bool:
         return False
     try:
         return datetime.now() > datetime.fromisoformat(exp)
-    except:
+    except Exception:
         return False
 
 def is_link_allowed(link: dict | None) -> bool:
@@ -458,7 +194,8 @@ def generate_vless_link(uuid: str, host: str, remark: str = "", protocol: str = 
                         fingerprint: str = "chrome", port: int = 443, 
                         sni: str = None) -> str:
     if not remark:
-        remark = "Eagle"
+        remark = "عقاب"
+    
     if not sni:
         sni = host
     
@@ -582,66 +319,60 @@ async def save_state():
 @app.on_event("startup")
 async def startup():
     global http_client
-    try:
-        limits = httpx.Limits(max_connections=500, max_keepalive_connections=100)
-        timeout = httpx.Timeout(30.0, connect=10.0)
-        http_client = httpx.AsyncClient(limits=limits, timeout=timeout, follow_redirects=True)
-    except:
-        http_client = None
+    limits = httpx.Limits(max_connections=500, max_keepalive_connections=100)
+    timeout = httpx.Timeout(30.0, connect=10.0)
+    http_client = httpx.AsyncClient(limits=limits, timeout=timeout, follow_redirects=True)
     await load_state()
-    log_activity("system", "🪐 Eagle Gateway راه‌اندازی شد", "ok")
-    logger.info(f"🪐 Eagle Gateway started on port {CONFIG['port']}")
+    
+    log_activity("system", "🪐 Eagle Gateway v10 Pro راه‌اندازی شد", "ok")
+    logger.info(f"🪐 Eagle Gateway v10 Pro started on port {CONFIG['port']}")
 
 @app.on_event("shutdown")
 async def shutdown():
     await save_state()
     if http_client:
-        try:
-            await http_client.aclose()
-        except:
-            pass
+        await http_client.aclose()
 
-# ─── API Routes ─────────────────────────────────────────────────────────────
+# ─── ===== تغییر زبان ===== ──────────────────────────────────────────────────
 
 @app.post("/api/settings/language")
 async def set_language(request: Request, _=Depends(require_auth)):
-    try:
-        body = await request.json()
-    except:
-        body = {}
+    body = await request.json()
     lang = body.get("language", "fa")
     if lang in ["fa", "en"]:
         SETTINGS["language"] = lang
         await save_state()
         return {"ok": True, "language": lang}
-    raise HTTPException(status_code=400, detail="Invalid language")
+    raise HTTPException(status_code=400, detail="زبان نامعتبر")
 
 @app.get("/api/language")
 async def get_language():
     return {"language": SETTINGS.get("language", "fa")}
 
+# ─── ===== تغییر رمز پنل ===== ──────────────────────────────────────────────
+
 @app.post("/api/change-password")
 async def change_password(request: Request, _=Depends(require_auth)):
-    try:
-        body = await request.json()
-    except:
-        body = {}
+    body = await request.json()
     old = body.get("old_password", "").strip()
     new = body.get("new_password", "").strip()
     
     if not old or not new or len(new) < 4:
-        raise HTTPException(400, "New password must be at least 4 characters")
+        raise HTTPException(400, "رمز جدید حداقل 4 کاراکتر")
     
     if hash_password(old) != AUTH["password_hash"]:
-        raise HTTPException(403, "Current password is wrong")
+        raise HTTPException(403, "رمز فعلی اشتباه")
     
     AUTH["password_hash"] = hash_password(new)
     CONFIG["admin_password"] = new
     os.environ["ADMIN_PASSWORD"] = new
     
     await save_state()
-    log_activity("settings", "Panel password changed", "ok")
+    log_activity("settings", "رمز پنل تغییر کرد", "ok")
+    
     return {"ok": True}
+
+# ─── API: Settings ─────────────────────────────────────────────────────────
 
 @app.get("/api/settings")
 async def get_settings(_=Depends(require_auth)):
@@ -649,20 +380,16 @@ async def get_settings(_=Depends(require_auth)):
 
 @app.post("/api/settings/rgb")
 async def toggle_rgb(request: Request, _=Depends(require_auth)):
-    try:
-        body = await request.json()
-    except:
-        body = {}
+    body = await request.json()
     SETTINGS["rgb_mode"] = bool(body.get("enabled", False))
     await save_state()
     return {"rgb_mode": SETTINGS["rgb_mode"]}
 
+# ─── API: Dashboard Stats ──────────────────────────────────────────────────
+
 @app.get("/api/dashboard/stats")
 async def dashboard_stats(_=Depends(require_auth)):
-    try:
-        disk_usage = psutil.disk_usage('/')
-    except:
-        disk_usage = type('obj', (object,), {'total': 0, 'used': 0, 'free': 0, 'percent': 0})()
+    disk_usage = psutil.disk_usage('/')
     
     if len(hourly_traffic) > 0:
         last_hour = sum(list(hourly_traffic.values())[-6:])
@@ -697,6 +424,8 @@ async def dashboard_stats(_=Depends(require_auth)):
         "active_links": sum(1 for l in LINKS.values() if is_link_allowed(l))
     }
 
+# ─── API: Inbound ────────────────────────────────────────────────────────────
+
 @app.get("/api/inbound")
 async def get_inbound(_=Depends(require_auth)):
     return {
@@ -708,25 +437,20 @@ async def get_inbound(_=Depends(require_auth)):
 
 @app.post("/api/inbound")
 async def update_inbound(request: Request, _=Depends(require_auth)):
-    try:
-        body = await request.json()
-    except:
-        body = {}
+    body = await request.json()
     port = body.get("port", 443)
     if port < 1 or port > 65535:
-        raise HTTPException(status_code=400, detail="Invalid port")
+        raise HTTPException(status_code=400, detail="پورت نامعتبر")
     SETTINGS["inbound_port"] = port
     await save_state()
     return {"ok": True, "port": port}
 
+# ─── API: Links ─────────────────────────────────────────────────────────────
+
 @app.post("/api/links")
 async def create_link(request: Request, _=Depends(require_auth)):
-    try:
-        body = await request.json()
-    except:
-        body = {}
-    
-    label = (body.get("label") or "New Link").strip()[:60]
+    body = await request.json()
+    label = (body.get("label") or "لینک جدید").strip()[:60]
     lv = float(body.get("limit_value") or 0)
     lu = body.get("limit_unit") or "GB"
     limit_bytes = 0 if lv <= 0 else parse_size_to_bytes(lv, lu)
@@ -743,74 +467,53 @@ async def create_link(request: Request, _=Depends(require_auth)):
         fingerprint = "chrome"
     config_password = body.get("password", "").strip()
     password_hash = hash_password(config_password) if config_password else None
-    
-    ports = body.get("ports", [443])
-    if not ports or not isinstance(ports, list):
-        ports = [443]
-    ports = [p for p in ports if isinstance(p, int) and 1 <= p <= 65535]
-    if not ports:
-        ports = [443]
+    port = int(body.get("port", 443))
+    if port < 1 or port > 65535:
+        port = 443
 
-    group_id = body.get("group_id") or f"group_{label}_{int(time.time())}"
-    created_uuids = []
+    uid = generate_uuid()
     async with LINKS_LOCK:
-        for port in ports:
-            uid = generate_uuid()
-            created_uuids.append(uid)
-            LINKS[uid] = {
-                "label": label,
-                "limit_bytes": limit_bytes,
-                "used_bytes": 0,
-                "created_at": datetime.now().isoformat(),
-                "active": True,
-                "expires_at": expires_at,
-                "note": note,
-                "is_default": False,
-                "sub_id": sub_id,
-                "protocol": protocol,
-                "max_devices": max_devices,
-                "fingerprint": fingerprint,
-                "password_hash": password_hash,
-                "port": port,
-                "group_id": group_id,
-            }
+        LINKS[uid] = {
+            "label": label,
+            "limit_bytes": limit_bytes,
+            "used_bytes": 0,
+            "created_at": datetime.now().isoformat(),
+            "active": True,
+            "expires_at": expires_at,
+            "note": note,
+            "is_default": False,
+            "sub_id": sub_id,
+            "protocol": protocol,
+            "max_devices": max_devices,
+            "fingerprint": fingerprint,
+            "password_hash": password_hash,
+            "port": port,
+        }
 
     if sub_id:
         async with SUBS_LOCK:
             if sub_id in SUBS:
                 ids = SUBS[sub_id].setdefault("link_ids", [])
-                for uid in created_uuids:
-                    if uid not in ids:
-                        ids.append(uid)
+                if uid not in ids:
+                    ids.append(uid)
 
     asyncio.create_task(save_state())
-    log_activity("link", f"Configs for «{label}» created ({len(created_uuids)} ports)", "ok")
-    
+    log_activity("link", f"کانفیگ «{label}» ساخته شد", "ok")
     host = get_host()
-    remark = f"Eagle-{label}"
     
-    links_data = []
-    for uid in created_uuids:
-        link = LINKS[uid]
-        port = link.get("port", 443)
-        main_link = generate_vless_link(uid, host, remark=remark, protocol=protocol, fingerprint=fingerprint, port=port)
-        links_data.append({
-            "uuid": uid,
-            **link,
-            "has_password": password_hash is not None,
-            "vless_link": main_link,
-            "sub_url": f"https://{host}/sub/{uid}",
-        })
+    remark = f"عقاب-{label}"
+    main_link = generate_vless_link(uid, host, remark=remark, protocol=protocol, fingerprint=fingerprint, port=port)
     
-    group_sub_url = f"https://{host}/sub-group/{group_id}" if created_uuids else None
-    
-    return {
-        "links": links_data,
-        "count": len(links_data),
-        "group_sub_url": group_sub_url,
-        "group_id": group_id,
-        "message": f"{len(links_data)} configs created"
+    link_data = {
+        "uuid": uid,
+        **LINKS[uid],
+        "has_password": password_hash is not None,
+        "vless_link": main_link,
+        "sub_url": f"https://{host}/sub/{uid}",
+        "warning_config": "",
     }
+    
+    return link_data
 
 @app.get("/api/links")
 async def list_links(_=Depends(require_auth)):
@@ -823,8 +526,8 @@ async def list_links(_=Depends(require_auth)):
         proto = d.get("protocol", DEFAULT_PROTOCOL)
         fp = d.get("fingerprint", "chrome")
         port = d.get("port", 443)
-        label = d.get("label", "User")
-        remark = f"Eagle-{label}"
+        label = d.get("label", "کاربر")
+        remark = f"عقاب-{label}"
         
         last_connected = None
         for c in connections.values():
@@ -846,16 +549,14 @@ async def list_links(_=Depends(require_auth)):
             "last_connected_at": last_connected,
             "vless_link": generate_vless_link(uid, host, remark=remark, protocol=proto, fingerprint=fp, port=port),
             "sub_url": f"https://{host}/sub/{uid}",
+            "warning_config": "",
         })
     result.sort(key=lambda x: x["created_at"], reverse=True)
     return {"links": result}
 
 @app.patch("/api/links/{uid}")
 async def update_link(uid: str, request: Request, _=Depends(require_auth)):
-    try:
-        body = await request.json()
-    except:
-        body = {}
+    body = await request.json()
     
     async with LINKS_LOCK:
         if uid not in LINKS:
@@ -865,9 +566,9 @@ async def update_link(uid: str, request: Request, _=Depends(require_auth)):
         if link.get("password_hash"):
             password = body.get("password", "").strip()
             if not password:
-                raise HTTPException(status_code=403, detail="Password required to edit")
+                raise HTTPException(status_code=403, detail="برای ویرایش این کانفیگ رمز آن را وارد کنید")
             if hash_password(password) != link["password_hash"]:
-                raise HTTPException(status_code=403, detail="Wrong config password")
+                raise HTTPException(status_code=403, detail="رمز کانفیگ اشتباه است")
         
         old_sub = link.get("sub_id")
         
@@ -912,15 +613,12 @@ async def update_link(uid: str, request: Request, _=Depends(require_auth)):
                     ids.append(uid)
 
     asyncio.create_task(save_state())
-    log_activity("link", f"Config «{link['label']}» edited", "info")
+    log_activity("link", f"کانفیگ «{link['label']}» ویرایش شد", "info")
     return {"ok": True}
 
 @app.delete("/api/links/{uid}")
 async def delete_link(uid: str, request: Request, _=Depends(require_auth)):
-    try:
-        body = await request.json()
-    except:
-        body = {}
+    body = await request.json()
     password = body.get("password", "").strip()
     
     async with LINKS_LOCK:
@@ -930,9 +628,9 @@ async def delete_link(uid: str, request: Request, _=Depends(require_auth)):
         
         if link.get("password_hash"):
             if not password:
-                raise HTTPException(status_code=403, detail="Password required to delete")
+                raise HTTPException(status_code=403, detail="برای حذف این کانفیگ رمز آن را وارد کنید")
             if hash_password(password) != link["password_hash"]:
-                raise HTTPException(status_code=403, detail="Wrong config password")
+                raise HTTPException(status_code=403, detail="رمز کانفیگ اشتباه است")
         
         label = link.get("label", uid)
         sub_id = link.get("sub_id")
@@ -946,8 +644,11 @@ async def delete_link(uid: str, request: Request, _=Depends(require_auth)):
                     ids.remove(uid)
     
     asyncio.create_task(save_state())
-    log_activity("link", f"Config «{label}» deleted", "err")
+    log_activity("link", f"کانفیگ «{label}» حذف شد", "err")
+    
     return {"ok": True, "deleted": uid}
+
+# ─── API: Stats & Connections ──────────────────────────────────────────────
 
 @app.get("/stats")
 async def get_stats(_=Depends(require_auth)):
@@ -962,7 +663,7 @@ async def get_stats(_=Depends(require_auth)):
             top_usage = used
             top_user = {
                 "uuid": uid,
-                "label": link.get("label", "Unknown"),
+                "label": link.get("label", "نامشخص"),
                 "used_bytes": used,
                 "used_fmt": fmt_bytes(used)
             }
@@ -990,9 +691,9 @@ async def get_connections(_=Depends(require_auth)):
 
     grouped: dict[str, dict] = {}
     for conn_id, c in connections.items():
-        ip = c.get("ip", "Unknown")
+        ip = c.get("ip", "نامشخص")
         link = snap.get(c.get("uuid"))
-        label = link.get("label") if link else "Unknown"
+        label = link.get("label") if link else "نامشخص"
         g = grouped.get(ip)
         if g is None:
             g = {
@@ -1022,7 +723,7 @@ async def get_connections(_=Depends(require_auth)):
             "ip": ip,
             "sessions": g["sessions"],
             "labels": sorted(g["labels"]),
-            "label": " · ".join(sorted(g["labels"])) if g["labels"] else "Unknown",
+            "label": " · ".join(sorted(g["labels"])) if g["labels"] else "نامشخص",
             "transports": sorted(g["transports"]),
             "bytes": g["bytes"],
             "bytes_fmt": fmt_bytes(g["bytes"]),
@@ -1037,22 +738,21 @@ async def get_connections(_=Depends(require_auth)):
         "raw_count": len(connections),
     }
 
+# ─── Auth Endpoints ────────────────────────────────────────────────────────
+
 @app.post("/api/login")
 async def api_login(request: Request):
-    try:
-        body = await request.json()
-    except:
-        body = {}
+    body = await request.json()
     ip = client_ip(request)
     password = body.get("password", "")
     remember = body.get("remember", False)
     
     if hash_password(str(password)) != AUTH["password_hash"]:
-        log_activity("auth", f"Failed login attempt from {ip}", "err")
-        raise HTTPException(status_code=401, detail="Wrong password")
+        log_activity("auth", f"تلاش ورود ناموفق از {ip}", "err")
+        raise HTTPException(status_code=401, detail="رمز عبور اشتباه است")
     
     token = await create_session()
-    log_activity("auth", f"Successful login from {ip}", "ok")
+    log_activity("auth", f"ورود موفق به پنل از {ip}", "ok")
     
     max_age = SESSION_TTL if remember else None
     resp = JSONResponse({"ok": True})
@@ -1070,11 +770,15 @@ async def api_logout(request: Request):
 async def api_me(request: Request):
     return {"authenticated": await is_valid_session(request.cookies.get(SESSION_COOKIE))}
 
+# ─── API: Activity Logs ───────────────────────────────────────────────────────
+
 @app.get("/api/activity")
 async def get_activity_logs(_=Depends(require_auth)):
     limit = 100
     logs = list(activity_logs)[-limit:]
     return {"logs": logs}
+
+# ─── Backup ────────────────────────────────────────────────────────────────────
 
 @app.get("/api/backup")
 async def get_backup(_=Depends(require_auth)):
@@ -1095,10 +799,7 @@ async def get_backup(_=Depends(require_auth)):
 async def restore_backup(request: Request, _=Depends(require_auth)):
     try:
         body = await request.json()
-    except:
-        raise HTTPException(status_code=400, detail="Invalid JSON")
-    
-    try:
+        
         if "links" in body and isinstance(body["links"], dict):
             async with LINKS_LOCK:
                 LINKS.clear()
@@ -1122,13 +823,13 @@ async def restore_backup(request: Request, _=Depends(require_auth)):
             SETTINGS.update(body["settings"])
         
         await save_state()
-        log_activity("backup", "Backup restored", "ok")
-        return {"ok": True, "message": "Backup restored successfully"}
+        log_activity("backup", "بکاپ بازیابی شد", "ok")
+        return {"ok": True, "message": "بکاپ با موفقیت بازیابی شد"}
     except Exception as e:
         logger.error(f"Backup restore error: {e}")
-        raise HTTPException(status_code=400, detail=f"Backup restore error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"خطا در بازیابی بکاپ: {str(e)}")
 
-# ─── WebSocket Tunnel ──────────────────────────────────────────────────────
+# ─── VLESS WebSocket Tunnel ────────────────────────────────────────────────
 
 RELAY_BUF = 512 * 1024
 
@@ -1139,7 +840,7 @@ def _ws_client_ip(ws: WebSocket) -> str:
     real_ip = ws.headers.get("x-real-ip")
     if real_ip:
         return real_ip.strip()
-    return ws.client.host if ws.client else "Unknown"
+    return ws.client.host if ws.client else "نامشخص"
 
 async def check_device_limit(uuid: str, client_ip: str) -> bool:
     async with LINKS_LOCK:
@@ -1199,16 +900,13 @@ async def check_and_use(uid: str, n: int) -> bool:
             return False
         link["used_bytes"] = link.get("used_bytes", 0) + n
         stats["total_bytes"] = stats.get("total_bytes", 0) + n
-        try:
-            hourly_traffic[datetime.now().strftime("%H:00")] = hourly_traffic.get(datetime.now().strftime("%H:00"), 0) + n
-        except:
-            pass
+        hourly_traffic[now_ir().strftime("%H:00")] = hourly_traffic.get(now_ir().strftime("%H:00"), 0) + n
         
         limit = link.get("limit_bytes", 0)
         used = link.get("used_bytes", 0)
         if limit > 0 and used / limit > 0.8 and not link.get("alert_80"):
             link["alert_80"] = True
-            log_activity("warning", f"⚠️ Config {link.get('label')} usage reached 80%", "warn")
+            log_activity("warning", f"⚠️ مصرف کانفیگ {link.get('label')} به 80% رسید", "warn")
         
         return True
 
@@ -1235,7 +933,7 @@ async def relay_ws_to_tcp(ws: WebSocket, writer: asyncio.StreamWriter, conn_id: 
     finally:
         try:
             writer.write_eof()
-        except:
+        except Exception:
             pass
 
 async def relay_tcp_to_ws(ws: WebSocket, reader: asyncio.StreamReader, conn_id: str, uid: str):
@@ -1253,7 +951,7 @@ async def relay_tcp_to_ws(ws: WebSocket, reader: asyncio.StreamReader, conn_id: 
             payload = (b"\x00\x00" + data) if first else data
             first = False
             await ws.send_bytes(payload)
-    except:
+    except Exception:
         pass
 
 @app.websocket("/ws/{uuid}")
@@ -1292,7 +990,7 @@ async def websocket_tunnel(ws: WebSocket, uuid: str):
     }
     
     logger.info(f"✅ WS [{conn_id}] uuid={uuid[:8]}… ip={client_ip} total={len(connections)}")
-    log_activity("connection", f"New connection from {client_ip} (config {link.get('label','?')})", "info")
+    log_activity("connection", f"اتصال جدید از {client_ip} (کانفیگ {link.get('label','?')})", "info")
     
     writer = None
 
@@ -1359,7 +1057,7 @@ async def websocket_tunnel(ws: WebSocket, uuid: str):
             try:
                 writer.close()
                 await writer.wait_closed()
-            except:
+            except Exception:
                 pass
         connections.pop(conn_id, None)
         await remove_device_connection(uuid, client_ip)
@@ -1367,134 +1065,78 @@ async def websocket_tunnel(ws: WebSocket, uuid: str):
 
 # ─── Subscriptions ─────────────────────────────────────────────────────────
 
-@app.get("/sub-group/{group_id}")
-async def subscription_group(group_id: str, request: Request):
-    host = get_host()
-    lines = []
-    
-    async with LINKS_LOCK:
-        for uid, link in LINKS.items():
-            if link.get("group_id") == group_id and is_link_allowed(link):
-                fp = link.get("fingerprint", "chrome")
-                port = link.get("port", 443)
-                label = link.get("label", "User")
-                remark = f"Eagle-{label}-{port}"
-                vless = generate_vless_link(
-                    uid, host, remark=remark,
-                    protocol=link.get("protocol", DEFAULT_PROTOCOL),
-                    fingerprint=fp, port=port
-                )
-                lines.append(vless)
-    
-    if not lines:
-        return Response("", media_type="text/plain")
-    
-    content = base64.b64encode("\n".join(lines).encode()).decode()
-    return Response(
-        content=content,
-        media_type="text/plain",
-        headers={
-            "profile-title": f"Eagle-Group-{group_id[:8]}",
-            "profile-update-interval": "12",
-        }
-    )
-
 @app.get("/sub/{uuid}")
-async def subscription_single(uuid: str, request: Request):
+async def subscription_single(uuid: str):
+    from pages import get_sub_page_html
+    
     async with LINKS_LOCK:
         link = LINKS.get(uuid)
     
     if not link:
         return HTMLResponse("""
         <!DOCTYPE html>
-        <html>
-        <head><meta charset="UTF-8"><title>Not Found</title></head>
-        <body style="background:#0a0a1a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
-            <div style="text-align:center;padding:40px;background:rgba(20,20,40,0.7);border-radius:20px;">
-                <h1>🪐</h1>
-                <p style="color:#888;">User not found</p>
-            </div>
+        <html lang="fa" dir="rtl">
+        <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>🦅 کاربر یافت نشد</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;800&display=swap" rel="stylesheet">
+        <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Vazirmatn',sans-serif;background:#0a0a0f;min-height:100vh;display:flex;align-items:center;justify-content:center;color:#F0F0FF}
+        .card{background:rgba(15,15,30,0.85);backdrop-filter:blur(30px);border:1px solid rgba(59,130,246,0.12);border-radius:28px;padding:40px;max-width:420px;text-align:center}
+        .icon{font-size:64px;margin-bottom:16px}
+        h2{font-size:22px;font-weight:800;margin-bottom:8px}
+        p{color:#6A6A8A;font-size:13px;line-height:1.8}
+        </style>
+        </head>
+        <body>
+        <div class="card">
+            <div class="icon">🦅</div>
+            <h2>کاربر یافت نشد</h2>
+            <p>لینک ساب‌لینک معتبر نیست یا کاربر حذف شده است.</p>
+        </div>
         </body>
         </html>
         """, status_code=404)
     
-    label = link.get("label", "User")
-    port = link.get("port", 443)
-    fp = link.get("fingerprint", "chrome")
-    protocol = link.get("protocol", "vless-ws")
-    host = get_host()
-    remark = f"Eagle-{label}"
+    active_connections_list = []
+    for c in connections.values():
+        if c.get("uuid") == uuid:
+            active_connections_list.append(c)
     
-    vless_link = generate_vless_link(uuid, host, remark=remark, protocol=protocol, fingerprint=fp, port=port)
+    active_connections_count = len(active_connections_list)
     
-    return HTMLResponse(f"""
-    <!DOCTYPE html>
-    <html lang="fa" dir="rtl">
-    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🪐 {label}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;800&display=swap" rel="stylesheet">
-    <style>
-    *{{margin:0;padding:0;box-sizing:border-box}}
-    body{{font-family:'Vazirmatn',sans-serif;background:#0a0a1a;min-height:100vh;display:flex;align-items:center;justify-content:center;color:#F0EEFF;padding:16px}}
-    .card{{background:rgba(10,10,30,0.8);backdrop-filter:blur(30px);border:1px solid rgba(100,80,255,0.08);border-radius:20px;padding:30px;max-width:500px;width:100%}}
-    .brand{{display:flex;align-items:center;gap:10px;margin-bottom:20px}}
-    .brand-icon{{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#7C6BFF,#5B4BD9);display:flex;align-items:center;justify-content:center;font-size:20px}}
-    .brand-text{{font-size:16px;font-weight:800;background:linear-gradient(135deg,#A78BFA,#7C6BFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent}}
-    .info-item{{background:rgba(100,80,255,0.03);border:1px solid rgba(100,80,255,0.04);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between}}
-    .info-label{{color:#8888BB;font-size:11px}}
-    .info-value{{color:#F0EEFF;font-weight:600;font-size:12px}}
-    .vless-box{{background:rgba(0,0,0,0.2);border:1px solid rgba(100,80,255,0.04);border-radius:8px;padding:10px;margin:12px 0;word-break:break-all;font-family:monospace;font-size:10px;color:#A78BFA}}
-    .btn{{display:inline-block;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-weight:600;font-size:12px;transition:all .2s}}
-    .btn-primary{{background:linear-gradient(135deg,#7C6BFF,#5B4BD9);color:#fff}}
-    .btn-primary:hover{{transform:translateY(-1px);box-shadow:0 4px 20px rgba(100,80,255,0.3)}}
-    .btn-secondary{{background:rgba(100,80,255,0.05);border:1px solid rgba(100,80,255,0.04);color:#8888BB}}
-    .btn-secondary:hover{{background:rgba(100,80,255,0.1)}}
-    .actions{{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}}
-    .actions .btn{{flex:1;text-align:center;min-width:80px}}
-    .status{{display:inline-block;padding:2px 10px;border-radius:12px;font-size:10px;font-weight:700}}
-    .status.active{{background:rgba(16,185,129,0.12);color:#34D399}}
-    .status.inactive{{background:rgba(239,68,68,0.12);color:#F87171}}
-    .footer{{margin-top:16px;padding-top:12px;border-top:1px solid rgba(100,80,255,0.03);text-align:center;font-size:9px;color:#555577}}
-    </style>
-    </head>
-    <body>
-    <div class="card">
-        <div class="brand"><div class="brand-icon">🪐</div><div class="brand-text">پنل عقاب</div></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <h2 style="font-size:18px;font-weight:800">🪐 {label}</h2>
-            <span class="status {'active' if link.get('active', True) and not is_link_expired(link) else 'inactive'}">
-                {'فعال' if link.get('active', True) and not is_link_expired(link) else 'غیرفعال'}
-            </span>
-        </div>
-        <div class="info-item"><span class="info-label">UUID</span><span class="info-value" style="font-family:monospace;font-size:10px">{uuid}</span></div>
-        <div class="info-item"><span class="info-label">پورت</span><span class="info-value">{port}</span></div>
-        <div class="info-item"><span class="info-label">پروتکل</span><span class="info-value">{protocol}</span></div>
-        <div class="info-item"><span class="info-label">فینگرپرینت</span><span class="info-value">{fp}</span></div>
-        <div class="info-item"><span class="info-label">مصرف</span><span class="info-value">{fmt_bytes(link.get('used_bytes', 0))}</span></div>
-        <div class="info-item"><span class="info-label">سهمیه</span><span class="info-value">{'نامحدود' if link.get('limit_bytes', 0) == 0 else fmt_bytes(link.get('limit_bytes', 0))}</span></div>
-        <div class="vless-box">{vless_link}</div>
-        <div class="actions">
-            <button class="btn btn-primary" onclick="copyText('{vless_link}')">📋 کپی</button>
-            <button class="btn btn-secondary" onclick="window.open('https://api.qrserver.com/v1/create-qr-code/?size=250x250&data='+encodeURIComponent('{vless_link}'), '_blank')">📱 QR</button>
-        </div>
-        <div class="footer">🪐 پنل عقاب</div>
-    </div>
-    <script>
-    function copyText(text) {{
-        navigator.clipboard.writeText(text).then(() => {{
-            const btn = event.target;
-            const orig = btn.textContent;
-            btn.textContent = '✅ کپی شد';
-            setTimeout(() => btn.textContent = orig, 1500);
-        }});
-    }}
-    </script>
-    </body>
-    </html>
-    """)
+    label = link.get("label", "کاربر")
+    remark = f"عقاب-{label}"
+    
+    last_connected = None
+    for c in connections.values():
+        if c.get("uuid") == uuid:
+            if not last_connected or c.get("connected_at") > last_connected:
+                last_connected = c.get("connected_at")
+    
+    link_data = {
+        **link,
+        "expired": is_link_expired(link),
+        "active_connections": active_connections_count,
+        "active_connections_list": active_connections_list,
+        "last_connected_at": last_connected,
+        "vless_link": generate_vless_link(
+            uuid, 
+            get_host(), 
+            remark=remark,
+            protocol=link.get("protocol", DEFAULT_PROTOCOL),
+            fingerprint=link.get("fingerprint", "chrome"),
+            port=link.get("port", 443)
+        ),
+        "sub_url": f"https://{get_host()}/sub/{uuid}",
+    }
+    
+    return HTMLResponse(content=get_sub_page_html(uuid, link_data))
 
 @app.get("/sub-all")
 async def subscription_all(_=Depends(require_auth)):
+    import base64
     host = get_host()
     async with LINKS_LOCK:
         lines = []
@@ -1502,125 +1144,155 @@ async def subscription_all(_=Depends(require_auth)):
             if is_link_allowed(d):
                 fp = d.get("fingerprint", "chrome")
                 port = d.get("port", 443)
-                label = d.get("label", "User")
-                remark = f"Eagle-{label}"
+                label = d.get("label", "کاربر")
+                remark = f"عقاب-{label}"
                 lines.append(generate_vless_link(uid, host, remark=remark, protocol=d.get("protocol", DEFAULT_PROTOCOL), fingerprint=fp, port=port))
     content = base64.b64encode("\n".join(lines).encode()).decode()
     return Response(content=content, media_type="text/plain")
 
-# ─── Pages ──────────────────────────────────────────────────────────────────
+@app.get("/sub-group/{uuid_key}")
+async def sub_group_subscription(uuid_key: str, request: Request):
+    import base64
+    async with SUBS_LOCK:
+        sub = next((s for s in SUBS.values() if s.get("uuid_key") == uuid_key), None)
+    if not sub:
+        raise HTTPException(status_code=404, detail="not found")
+
+    if sub.get("password_hash"):
+        pw = request.query_params.get("pw", "")
+        if hash_password(pw) != sub["password_hash"]:
+            raise HTTPException(status_code=403, detail="wrong password")
+
+    host = get_host()
+    link_ids = sub.get("link_ids", [])
+    async with LINKS_LOCK:
+        lines = []
+        for lid in link_ids:
+            link = LINKS.get(lid)
+            if link and is_link_allowed(link):
+                fp = link.get("fingerprint", "chrome")
+                port = link.get("port", 443)
+                label = link.get("label", "کاربر")
+                remark = f"عقاب-{label}"
+                lines.append(generate_vless_link(lid, host, remark=remark, protocol=link.get("protocol", DEFAULT_PROTOCOL), fingerprint=fp, port=port))
+
+    content = base64.b64encode("\n".join(lines).encode()).decode()
+    return Response(
+        content=content,
+        media_type="text/plain",
+        headers={
+            "profile-title": quote(sub["name"]),
+            "profile-update-interval": "12",
+        }
+    )
+
+@app.get("/p/{uuid_key}", response_class=HTMLResponse)
+async def public_sub_page(uuid_key: str):
+    return HTMLResponse("<h2 style='font-family:sans-serif;padding:40px;color:var(--t1)'>🦅 گروه اشتراک</h2>")
+
+@app.get("/api/public/sub/{uuid_key}")
+async def public_sub_data(uuid_key: str, request: Request):
+    async with SUBS_LOCK:
+        sub_entry = next(((sid, s) for sid, s in SUBS.items() if s.get("uuid_key") == uuid_key), None)
+    if not sub_entry:
+        raise HTTPException(status_code=404, detail="not found")
+    sub_id, sub = sub_entry
+
+    has_pw = sub.get("password_hash") is not None
+    if has_pw:
+        pw = request.query_params.get("pw", "")
+        if hash_password(pw) != sub["password_hash"]:
+            return JSONResponse({"locked": True, "name": sub["name"]})
+
+    host = get_host()
+    link_ids = sub.get("link_ids", [])
+    async with LINKS_LOCK:
+        snap = dict(LINKS)
+
+    links_out = []
+    active_conns = 0
+    for lid in link_ids:
+        link = snap.get(lid)
+        if not link:
+            continue
+        allowed = is_link_allowed(link)
+        conn_count = sum(1 for c in connections.values() if c.get("uuid") == lid)
+        active_conns += conn_count
+        proto = link.get("protocol", DEFAULT_PROTOCOL)
+        fp = link.get("fingerprint", "chrome")
+        port = link.get("port", 443)
+        label = link.get("label", "کاربر")
+        remark = f"عقاب-{label}"
+        links_out.append({
+            "uuid": lid,
+            "label": link["label"],
+            "active": allowed,
+            "protocol": proto,
+            "fingerprint": fp,
+            "max_devices": link.get("max_devices", 0),
+            "used_bytes": link.get("used_bytes", 0),
+            "used_fmt": fmt_bytes(link.get("used_bytes", 0)),
+            "limit_bytes": link.get("limit_bytes", 0),
+            "limit_fmt": "∞" if link.get("limit_bytes", 0) == 0 else fmt_bytes(link["limit_bytes"]),
+            "expires_at": link.get("expires_at"),
+            "has_password": link.get("password_hash") is not None,
+            "port": port,
+            "vless_link": generate_vless_link(lid, host, remark=remark, protocol=proto, fingerprint=fp, port=port),
+            "sub_url": f"https://{host}/sub/{lid}",
+            "connections": conn_count,
+        })
+
+    total_used = sum(l["used_bytes"] for l in links_out)
+    return {
+        "locked": False,
+        "name": sub["name"],
+        "desc": sub.get("desc", ""),
+        "sub_url": f"https://{host}/sub-group/{uuid_key}",
+        "active_connections": active_conns,
+        "total_used_fmt": fmt_bytes(total_used),
+        "links": links_out,
+    }
+
+# ─── HTML Pages ─────────────────────────────────────────────────────────────
+
+from pages import LOGIN_HTML, DASHBOARD_HTML
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     if await is_valid_session(request.cookies.get(SESSION_COOKIE)):
         return RedirectResponse(url="/dashboard")
-    return HTMLResponse(content="""
-<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🪐 پنل عقاب · ورود</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}:root{--bg:#0a0a1a;--card:rgba(10,10,30,0.75);--card-b:rgba(100,80,255,0.12);--accent:#7C6BFF;--t1:#F0EEFF;--t2:#8888BB;--t3:#555577;--border:rgba(100,80,255,0.08)}
-body{font-family:'Vazirmatn',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0a0a1a,#1a0a2a,#0a0a2a);padding:20px;color:var(--t1)}
-.container{position:relative;z-index:10;display:grid;grid-template-columns:1fr 1fr;max-width:1100px;width:100%;background:var(--card);backdrop-filter:blur(30px);border-radius:24px;border:1px solid var(--border);overflow:hidden;box-shadow:0 0 80px rgba(100,80,255,0.05)}
-.login-section{padding:48px 40px}
-.brand{display:flex;align-items:center;gap:12px;margin-bottom:32px}
-.brand-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#7C6BFF,#5B4BD9,#A78BFA);display:flex;align-items:center;justify-content:center;font-size:22px}
-.brand-text{font-size:16px;font-weight:800;background:linear-gradient(135deg,#A78BFA,#7C6BFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.brand-sub{font-size:9px;color:var(--t3)}
-.welcome{font-size:22px;font-weight:800;color:var(--t1);margin-bottom:4px}
-.sub-text{font-size:13px;color:var(--t3);margin-bottom:28px}
-.field{margin-bottom:18px}
-.field label{display:block;font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px}
-.field input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:rgba(0,0,20,.3);color:var(--t1);font-family:inherit;font-size:14px;outline:none}
-.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(100,80,255,.08)}
-.options{display:flex;justify-content:space-between;align-items:center;margin:14px 0 20px;font-size:12px}
-.options label{display:flex;align-items:center;gap:6px;color:var(--t2);cursor:pointer}
-.options label input[type="checkbox"]{accent-color:var(--accent);width:16px;height:16px;cursor:pointer}
-.btn-login{width:100%;padding:12px;border-radius:10px;border:none;cursor:pointer;background:linear-gradient(135deg,#7C6BFF,#5B4BD9,#A78BFA);color:#fff;font-family:inherit;font-size:15px;font-weight:700;transition:all .3s;box-shadow:0 4px 30px rgba(100,80,255,.25)}
-.btn-login:hover{transform:translateY(-2px);box-shadow:0 8px 40px rgba(100,80,255,.35)}
-.btn-login:disabled{opacity:.5;cursor:not-allowed}
-.signup-text{text-align:center;margin-top:18px;font-size:12px;color:var(--t3)}
-.signup-text a{color:var(--accent);text-decoration:none;font-weight:600}
-.error-box{display:none;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.15);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#F87171;align-items:center;gap:8px}
-.error-box.show{display:flex}
-.info-section{background:linear-gradient(135deg,#0a0a1a,#1a0a2a);padding:48px 36px;display:flex;flex-direction:column;justify-content:center;border-right:1px solid var(--border)}
-.info-title{font-size:22px;font-weight:800;color:var(--t1);margin-bottom:6px}
-.info-sub{font-size:13px;color:var(--t3);margin-bottom:24px}
-.features{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.feature{background:rgba(100,80,255,0.03);border-radius:12px;padding:14px 12px;text-align:center;border:1px solid rgba(100,80,255,0.04)}
-.feature .icon{font-size:28px;display:block;margin-bottom:4px}
-.feature .name{font-size:11px;font-weight:600;color:var(--t1)}
-.feature .desc{font-size:8px;color:var(--t3);margin-top:2px}
-@media(max-width:900px){.container{grid-template-columns:1fr}.info-section{display:none}.login-section{padding:32px 24px}}
-@media(max-width:480px){.login-section{padding:24px 16px}.welcome{font-size:19px}}
-</style>
-</head>
-<body>
-<div class="container">
-    <div class="login-section">
-        <div class="brand"><div class="brand-icon">🪐</div><div><div class="brand-text">پنل عقاب</div><div class="brand-sub">مدیریت کاربران</div></div></div>
-        <div class="welcome">خوش آمدید</div>
-        <div class="sub-text">وارد حساب کاربری خود شوید</div>
-        <div class="error-box" id="error-box"><i class="ti ti-alert-circle"></i><span id="error-text"></span></div>
-        <form id="login-form" onsubmit="handleLogin(event)">
-            <div class="field"><label>نام کاربری یا ایمیل</label><input type="text" id="username" placeholder="نام کاربری" value="admin" dir="ltr"></div>
-            <div class="field"><label>رمز عبور</label><input type="password" id="password" placeholder="رمز عبور را وارد کنید" dir="ltr"></div>
-            <div class="options"><label><input type="checkbox" id="remember"> <span>مرا به خاطر بسپار</span></label></div>
-            <button class="btn-login" type="submit" id="login-btn"><i class="ti ti-login-2"></i> ورود</button>
-        </form>
-        <div class="signup-text">حساب کاربری ندارید؟ <a href="/dashboard">ثبت نام</a></div>
-    </div>
-    <div class="info-section">
-        <div class="info-title">🪐 پنل عقاب</div>
-        <div class="info-sub">سریع‌ترین و امن‌ترین اتصال</div>
-        <div class="features">
-            <div class="feature"><span class="icon">🔒</span><div class="name">امن</div><div class="desc">حریم خصوصی شما</div></div>
-            <div class="feature"><span class="icon">⚡</span><div class="name">سریع</div><div class="desc">سرعت برق آسا</div></div>
-            <div class="feature"><span class="icon">🌍</span><div class="name">جهانی</div><div class="desc">سرورهای جهانی</div></div>
-            <div class="feature"><span class="icon">🕵️</span><div class="name">ناشناس</div><div class="desc">خصوصی بمانید</div></div>
-        </div>
-    </div>
-</div>
-<script>
-async function handleLogin(e){e.preventDefault();const btn=document.getElementById('login-btn');const err=document.getElementById('error-box');const errText=document.getElementById('error-text');err.classList.remove('show');btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> در حال ورود...';try{const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('password').value,remember:document.getElementById('remember').checked})});if(!r.ok){const d=await r.json().catch(()=>({}));errText.textContent=d.detail||'رمز عبور اشتباه است';err.classList.add('show');btn.disabled=false;btn.innerHTML='<i class="ti ti-login-2"></i> ورود';return;}window.location.href='/dashboard';}catch(e){errText.textContent='خطا در ارتباط با سرور';err.classList.add('show');btn.disabled=false;btn.innerHTML='<i class="ti ti-login-2"></i> ورود';}}
-document.getElementById('password').addEventListener('keydown',(e)=>{if(e.key==='Enter')document.getElementById('login-form').dispatchEvent(new Event('submit'));});
-</script>
-</body>
-</html>
-""")
+    return HTMLResponse(content=LOGIN_HTML)
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
     if not await is_valid_session(request.cookies.get(SESSION_COOKIE)):
         return RedirectResponse(url="/login")
-    return HTMLResponse(open("dashboard.html").read() if os.path.exists("dashboard.html") else """
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>پنل عقاب</title></head>
-<body style="background:#0a0a1a;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:20px">
-<h1 style="font-size:48px">🪐</h1>
-<h2>پنل عقاب</h2>
-<p style="color:#888">داشبورد با موفقیت بارگذاری شد</p>
-<a href="/api/links" style="color:#7C6BFF">مشاهده کاربران</a>
-<button onclick="fetch('/api/logout',{method:'POST'}).then(()=>location.href='/login')" style="padding:10px 20px;border-radius:8px;border:none;background:#EF4444;color:#fff;cursor:pointer">خروج</button>
-</body>
-</html>
-""")
+    return HTMLResponse(content=DASHBOARD_HTML)
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
     return HTMLResponse("""
-<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>🪐 Eagle Gateway</title>
-<style>body{font-family:sans-serif;background:#0a0a0f;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}.card{text-align:center;padding:40px;background:rgba(20,20,40,0.7);border-radius:20px;border:1px solid rgba(100,80,255,0.2)}h1{font-size:48px;margin:0}.sub{color:#888}a{color:#7C6BFF;text-decoration:none;font-weight:bold}</style></head>
-<body><div class="card"><h1>🪐</h1><h2>Eagle Gateway</h2><p class="sub">VPN Management Panel</p><a href="/login">Login →</a></div></body>
-</html>
-""")
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="UTF-8"><title>🪐 Eagle Gateway</title>
+    <style>
+    body{font-family:sans-serif;background:#0a0a0f;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+    .card{text-align:center;padding:40px;background:rgba(20,20,40,0.7);border-radius:20px;border:1px solid rgba(100,80,255,0.2)}
+    h1{font-size:48px;margin:0}
+    .sub{color:#888}
+    a{color:#7C6BFF;text-decoration:none;font-weight:bold}
+    </style>
+    </head>
+    <body>
+    <div class="card">
+        <h1>🪐</h1>
+        <h2>Eagle Gateway v10 Pro</h2>
+        <p class="sub">پنل مدیریت فیلترشکن</p>
+        <a href="/login">ورود به پنل →</a>
+    </div>
+    </body>
+    </html>
+    """)
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=CONFIG["port"], log_level="info")
+    uvicorn.run("main:app", host="0.0.0.0", port=CONFIG["port"], log_level="info", workers=1)
