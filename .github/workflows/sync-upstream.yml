@@ -1,12 +1,12 @@
 name: Sync Upstream (Auto-update forks)
 
 on:
-  # هر push به main → upstream را آپدیت می‌کند
+ 
   push:
     branches: [main]
-  # هر ۶ ساعت یک بار چک می‌کند
+ 
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */6 * * *
   workflow_dispatch:
 
 jobs:
